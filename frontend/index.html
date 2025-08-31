@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Event Manager Frontend</title>
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-800">
+  <div class="max-w-6xl mx-auto p-4 sm:p-8">
+    <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <h1 class="text-2xl sm:text-3xl font-bold">Event Management App</h1>
+      <div class="flex items-center gap-2">
+        <input id="apiBase" class="border rounded px-3 py-2 w-56" placeholder="API base (e.g. http://localhost:8000)" />
+        <button id="saveApiBtn" class="px-3 py-2 rounded bg-blue-600 text-white">Save API</button>
+      </div>
+    </header>
+
+    <!-- Auth bar -->
+    <div class="flex flex-wrap items-center gap-2 mb-6">
+      <span id="authStatus" class="text-sm px-2 py-1 rounded bg-gray-200">Not authenticated</span>
+      <button id="btnShowLogin" class="px-3 py-2 rounded bg-emerald-600 text-white">Login</button>
+      <button id="btnShowRegister" class="px-3 py-2 rounded bg-emerald-100 text-emerald-700">Register</button>
+      <button id="btnLogout" class="px-3 py-2 rounded bg-red-100 text-red-700 hidden">Logout</button>
+    </div>
+
+    <!-- Tabs -->
+    <nav class="mb-4 flex flex-wrap gap-2">
+      <button data-tab="events" class="tab-btn px-3 py-2 rounded bg-blue-600 text-white">Events</button>
+      <button data-tab="attendance" class="tab-btn px-3 py-2 rounded bg-white border">Attendance</button>
+      <button data-tab="me" class="tab-btn px-3 py-2 rounded bg-white border">My Attendance</button>
+      <button data-tab="admin" class="tab-btn px-3 py-2 rounded bg-white border">Admin</button>
+    </nav>
+
+    <!-- Messages -->
+    <div id="toast" class="hidden mb-4 p-3 rounded border text-sm"></div>
+
+    <!-- Panels -->
+    <section id="panel-events" class="panel space-y-4">
+      <div class="bg-white rounded-xl shadow p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-xl font-semibold">All Events</h2>
+          <button id="btnRefreshEvents" class="px-3 py-2 rounded bg-gray-100">Refresh</button>
+        </div>
+        <div id="eventsList" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        <p id="noEvents" class="text-sm text-gray-500 hidden">No events yet.</p>
+      </div>
+    </section>
+
+    <section id="panel-attendance" class="panel hidden space-y-4">
+      <div class="bg-white rounded-xl shadow p-4">
+        <h2 class="text-xl font-semibold mb-3">Event Attendance</h2>
+        <div class="flex flex-col sm:flex-row gap-2 mb-3">
+          <input id="attEventId" class="border rounded px-3 py-2 w-full sm:w-48" placeholder="Event ID" />
+          <button id="btnGetAttendance" class="px-3 py-2 rounded bg-blue-600 text-white">Get Attendance</button>
+        </div>
+        <div id="attendanceResult" class="text-sm"></div>
+      </div>
+    </section>
+
+    <section id="panel-me" class="panel hidden space-y-4">
+      <div class="bg-white rounded-xl shadow p-4">
+        <h2 class="text-xl font-semibold mb-3">My Attendance</h2>
+        <button id="btnMyAttendance" class="px-3 py-2 rounded bg-blue-600 text-white mb-3">Load My Attendance</button>
+        <div id="myAttendanceResult" class="text-sm"></div>
+      </div>
+    </section>
+
+    <section id="panel-admin" class="panel hidden space-y-4">
+      <div class="bg-white rounded-xl shadow p-4">
+        <h2 class="text-xl font-semibold mb-3">Admin – Create / Update / Delete Events</h2>
+        <p class="text-sm text-gray-600 mb-4">Admin-only actions will return 403 if your account isn't an admin.</p>
+
+        <!-- Create Event -->
+        <div class="mb-6">
+          <h3 class="font-semibold mb-2">Create Event</h3>
+          <div class="grid sm:grid-cols-2 gap-2">
+            <input id="c_name" class="border rounded px-3 py-2" placeholder="Name" />
+            <input id="c_location" class="border rounded px-3 py-2" placeholder="Location" />
+            <input id="c_date" type="datetime-local" class="border rounded px-3 py-2" placeholder="Date/Time" />
+            <input id="c_description" class="border rounded px-3 py-2" placeholder="Description (optional)" />
+          </div>
+          <button id="btnCreateEvent" class="mt-3 px-3 py-2 rounded bg-emerald-600 text-white">Create</button>
+        </div>
+
+        <!-- Update/Delete/GQR -->
+        <div class="mb-6">
+          <h3 class="font-semibold mb-2">Update/Delete/Generate QR</h3>
+          <div class="grid sm:grid-cols-4 gap-2">
+            <input id="u_id" class="border rounded px-3 py-2" placeholder="Event ID" />
+            <input id="u_name" class="border rounded px-3 py-2" placeholder="Name" />
+            <input id="u_location" class="border rounded px-3 py-2" placeholder="Location" />
+            <input id="u_date" type="datetime-local" class="border rounded px-3 py-2" placeholder="Date/Time" />
+            <input id="u_description" class="border rounded px-3 py-2 sm:col-span-4" placeholder="Description (optional)" />
+          </div>
+          <div class="flex flex-wrap gap-2 mt-3">
+            <button id="btnUpdateEvent" class="px-3 py-2 rounded bg-blue-600 text-white">Update</button>
+            <button id="btnDeleteEvent" class="px-3 py-2 rounded bg-red-600 text-white">Delete</button>
+            <button id="btnGenAttendQR" class="px-3 py-2 rounded bg-gray-800 text-white">Generate Attendance QR</button>
+          </div>
+          <p id="qrPath" class="text-xs text-gray-600 mt-2"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Auth Modals -->
+    <dialog id="loginModal" class="rounded-xl p-0 w-full max-w-md">
+      <form method="dialog" class="bg-white rounded-xl p-6">
+        <h3 class="text-lg font-semibold mb-4">Login</h3>
+        <div class="space-y-3">
+          <input id="login_email" class="border rounded px-3 py-2 w-full" placeholder="Email" />
+          <input id="login_password" type="password" class="border rounded px-3 py-2 w-full" placeholder="Password" />
+        </div>
+        <div class="mt-5 flex justify-end gap-2">
+          <button class="px-3 py-2 rounded bg-gray-100">Cancel</button>
+          <button id="btnLogin" class="px-3 py-2 rounded bg-blue-600 text-white" type="button">Login</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="registerModal" class="rounded-xl p-0 w-full max-w-md">
+      <form method="dialog" class="bg-white rounded-xl p-6">
+        <h3 class="text-lg font-semibold mb-4">Register</h3>
+        <div class="space-y-3">
+          <input id="reg_name" class="border rounded px-3 py-2 w-full" placeholder="Name" />
+          <input id="reg_email" class="border rounded px-3 py-2 w-full" placeholder="Email" />
+          <input id="reg_username" class="border rounded px-3 py-2 w-full" placeholder="Username (required by schema)" />
+          <input id="reg_password" type="password" class="border rounded px-3 py-2 w-full" placeholder="Password" />
+        </div>
+        <div class="mt-5 flex justify-end gap-2">
+          <button class="px-3 py-2 rounded bg-gray-100">Cancel</button>
+          <button id="btnRegister" class="px-3 py-2 rounded bg-emerald-600 text-white" type="button">Register</button>
+        </div>
+      </form>
+    </dialog>
+
+  </div>
+
+  <script>
+    // ---- Helpers ----
+    const $ = (sel) => document.querySelector(sel);
+    const apiBaseInput = $('#apiBase');
+    const toast = $('#toast');
+
+    function showToast(msg, type = 'info') {
+      toast.textContent = msg;
+      toast.className = '';
+      const base = 'mb-4 p-3 rounded border text-sm';
+      if (type === 'error') toast.className = base + ' bg-red-50 border-red-300 text-red-800';
+      else if (type === 'success') toast.className = base + ' bg-emerald-50 border-emerald-300 text-emerald-800';
+      else toast.className = base + ' bg-gray-50 border-gray-300 text-gray-800';
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3500);
+    }
+
+    function getApiBase() {
+      return localStorage.getItem('apiBase') || 'http://localhost:8000';
+    }
+
+    function saveApiBase() {
+      const v = apiBaseInput.value.trim();
+      if (!v) return showToast('API base cannot be empty', 'error');
+      localStorage.setItem('apiBase', v);
+      showToast('API base saved: ' + v, 'success');
+    }
+
+    function setAuthUI() {
+      const token = localStorage.getItem('token');
+      const status = $('#authStatus');
+      const logout = $('#btnLogout');
+      if (token) {
+        status.textContent = 'Authenticated';
+        status.className = 'text-sm px-2 py-1 rounded bg-emerald-100 text-emerald-700';
+        logout.classList.remove('hidden');
+      } else {
+        status.textContent = 'Not authenticated';
+        status.className = 'text-sm px-2 py-1 rounded bg-gray-200';
+        logout.classList.add('hidden');
+      }
+    }
+
+    async function apiFetch(path, options = {}) {
+      const base = getApiBase();
+      const token = localStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      const res = await fetch(base + path, { ...options, headers });
+      let data = null;
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        data = await res.json();
+      } else {
+        data = await res.text();
+      }
+      if (!res.ok) {
+        throw { status: res.status, data };
+      }
+      return data;
+    }
+
+    // ---- Tabs ----
+    const panels = {
+      events: $('#panel-events'),
+      attendance: $('#panel-attendance'),
+      me: $('#panel-me'),
+      admin: $('#panel-admin'),
+    };
+
+    function showTab(name) {
+      Object.entries(panels).forEach(([k, el]) => {
+        if (k === name) el.classList.remove('hidden');
+        else el.classList.add('hidden');
+      });
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('bg-blue-600', btn.dataset.tab === name);
+        btn.classList.toggle('text-white', btn.dataset.tab === name);
+        btn.classList.toggle('bg-white', btn.dataset.tab !== name);
+        btn.classList.toggle('border', btn.dataset.tab !== name);
+      });
+      if (name === 'events') loadEvents();
+    }
+
+    // ---- Auth modals ----
+    const loginModal = $('#loginModal');
+    const registerModal = $('#registerModal');
+
+    $('#btnShowLogin').addEventListener('click', () => loginModal.showModal());
+    $('#btnShowRegister').addEventListener('click', () => registerModal.showModal());
+
+    $('#btnLogout').addEventListener('click', () => {
+      localStorage.removeItem('token');
+      setAuthUI();
+      showToast('Logged out', 'success');
+    });
+
+    $('#saveApiBtn').addEventListener('click', saveApiBase);
+
+    // Login
+    $('#btnLogin').addEventListener('click', async () => {
+      const email = $('#login_email').value.trim();
+      const password = $('#login_password').value;
+      if (!email || !password) return showToast('Email and password required', 'error');
+      try {
+        const data = await apiFetch('/users/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password })
+        });
+        localStorage.setItem('token', data.access_token);
+        setAuthUI();
+        loginModal.close();
+        showToast('Login successful', 'success');
+      } catch (e) {
+        showToast('Login failed: ' + (e.data?.detail || e.status), 'error');
+      }
+    });
+
+    // Register
+    $('#btnRegister').addEventListener('click', async () => {
+      const name = $('#reg_name').value.trim();
+      const email = $('#reg_email').value.trim();
+      const username = $('#reg_username').value.trim(); // required by schema even if backend ignores it
+      const password = $('#reg_password').value;
+      if (!name || !email || !username || !password) return showToast('All fields required', 'error');
+      try {
+        await apiFetch('/users/register', {
+          method: 'POST',
+          body: JSON.stringify({ name, email, username, password })
+        });
+        registerModal.close();
+        showToast('Registration successful. You can now log in.', 'success');
+      } catch (e) {
+        const msg = e.data?.detail || JSON.stringify(e.data);
+        showToast('Registration failed: ' + msg, 'error');
+      }
+    });
+
+    // ---- Events list ----
+    async function loadEvents() {
+      try {
+        const events = await apiFetch('/events/');
+        const list = $('#eventsList');
+        list.innerHTML = '';
+        if (!events.length) {
+          $('#noEvents').classList.remove('hidden');
+          return;
+        }
+        $('#noEvents').classList.add('hidden');
+        for (const ev of events) {
+          const card = document.createElement('div');
+          card.className = 'rounded-xl border bg-white p-4 shadow-sm flex flex-col gap-2';
+          const dt = ev.date ? new Date(ev.date).toLocaleString() : '—';
+          card.innerHTML = `
+            <div class="flex items-start justify-between gap-2">
+              <h3 class="font-semibold text-lg">${ev.name}</h3>
+              <span class="text-xs px-2 py-1 rounded bg-gray-100">ID: ${ev.id}</span>
+            </div>
+            <p class="text-sm text-gray-600">${ev.description || ''}</p>
+            <div class="text-sm"><strong>Location:</strong> ${ev.location || '—'}</div>
+            <div class="text-sm"><strong>Date:</strong> ${dt}</div>
+            <div class="flex flex-wrap gap-2 mt-2">
+              <button class="px-3 py-2 rounded bg-gray-100" data-ev="${ev.id}" data-act="prefill">Prefill in Admin</button>
+              <button class="px-3 py-2 rounded bg-blue-600 text-white" data-ev="${ev.id}" data-act="attendance">View Attendance</button>
+              <a class="px-3 py-2 rounded bg-gray-800 text-white" href="${getApiBase()}/attendance/scan/${ev.id}" target="_blank" rel="noreferrer">Open Scan Page</a>
+            </div>
+          `;
+          card.querySelectorAll('button').forEach(btn => btn.addEventListener('click', handleEventCardAction));
+          list.appendChild(card);
+        }
+      } catch (e) {
+        showToast('Failed to load events: ' + e.status, 'error');
+      }
+    }
+
+    async function handleEventCardAction(ev) {
+      const id = this.dataset.ev;
+      const act = this.dataset.act;
+      if (act === 'attendance') {
+        $('#attEventId').value = id;
+        showTab('attendance');
+        document.getElementById('btnGetAttendance').click();
+      } else if (act === 'prefill') {
+        $('#u_id').value = id;
+        showTab('admin');
+      }
+    }
+
+    $('#btnRefreshEvents').addEventListener('click', loadEvents);
+
+    // ---- Admin actions ----
+    function isoFromDatetimeLocal(value) {
+      if (!value) return null;
+      const d = new Date(value);
+      return d.toISOString();
+    }
+
+    $('#btnCreateEvent').addEventListener('click', async () => {
+      const name = $('#c_name').value.trim();
+      const location = $('#c_location').value.trim();
+      const dateVal = isoFromDatetimeLocal($('#c_date').value);
+      const description = $('#c_description').value.trim() || null;
+      if (!name || !location || !dateVal) return showToast('Name, location and date are required', 'error');
+      try {
+        const created = await apiFetch('/events/', {
+          method: 'POST',
+          body: JSON.stringify({ name, location, date: dateVal, description })
+        });
+        showToast('Event created (ID ' + created.id + ')', 'success');
+        loadEvents();
+      } catch (e) {
+        showToast('Create failed: ' + (e.data?.detail || e.status), 'error');
+      }
+    });
+
+    $('#btnUpdateEvent').addEventListener('click', async () => {
+      const id = $('#u_id').value.trim();
+      if (!id) return showToast('Event ID required', 'error');
+      const name = $('#u_name').value.trim();
+      const location = $('#u_location').value.trim();
+      const dateVal = isoFromDatetimeLocal($('#u_date').value);
+      const description = $('#u_description').value.trim() || null;
+      if (!name || !location || !dateVal) return showToast('Name, location and date are required', 'error');
+      try {
+        const up = await apiFetch('/events/' + id, {
+          method: 'PUT',
+          body: JSON.stringify({ name, location, date: dateVal, description })
+        });
+        showToast('Event updated', 'success');
+        loadEvents();
+      } catch (e) {
+        showToast('Update failed: ' + (e.data?.detail || e.status), 'error');
+      }
+    });
+
+    $('#btnDeleteEvent').addEventListener('click', async () => {
+      const id = $('#u_id').value.trim();
+      if (!id) return showToast('Event ID required', 'error');
+      if (!confirm('Delete event #' + id + '?')) return;
+      try {
+        await apiFetch('/events/' + id, { method: 'DELETE' });
+        showToast('Event deleted', 'success');
+        loadEvents();
+      } catch (e) {
+        showToast('Delete failed: ' + (e.data?.detail || e.status), 'error');
+      }
+    });
+
+    $('#btnGenAttendQR').addEventListener('click', async () => {
+      const id = $('#u_id').value.trim();
+      if (!id) return showToast('Event ID required', 'error');
+      try {
+        const r = await apiFetch('/attendance/generate_qr/' + id, { method: 'POST' });
+        $('#qrPath').textContent = 'QR saved on server at: ' + (r.attendance_qr_path || '(unknown)');
+        showToast('Attendance QR generated', 'success');
+      } catch (e) {
+        showToast('QR generation failed: ' + (e.data?.detail || e.status), 'error');
+      }
+    });
+
+    // ---- Attendance panels ----
+    $('#btnGetAttendance').addEventListener('click', async () => {
+      const id = $('#attEventId').value.trim();
+      if (!id) return showToast('Event ID required', 'error');
+      try {
+        const data = await apiFetch('/attendance/' + id);
+        if (data.status === 'error') return showToast(data.message || 'Error', 'error');
+        const container = $('#attendanceResult');
+        const attendees = data.attendees || [];
+        if (!attendees.length) {
+          container.innerHTML = '<p class="text-gray-600">No attendees yet.</p>';
+        } else {
+          container.innerHTML = attendees.map(a => {
+            const nm = a.name || a.user_name || a.user || ('User ' + a.user_id);
+            return `<div class="border rounded p-2 mb-2">
+              <div><strong>User:</strong> ${nm}</div>
+              <div><strong>User ID:</strong> ${a.user_id}</div>
+              <div><strong>Checked at:</strong> ${a.check_in_time}</div>
+            </div>`;
+          }).join('');
+        }
+      } catch (e) {
+        showToast('Failed to load attendance: ' + (e.data?.detail || e.status), 'error');
+      }
+    });
+
+    $('#btnMyAttendance').addEventListener('click', async () => {
+      try {
+        const data = await apiFetch('/attendance/my_attendance');
+        const list = data.attendances || [];
+        const container = $('#myAttendanceResult');
+        if (!list.length) {
+          container.innerHTML = '<p class="text-gray-600">No attendance records.</p>';
+        } else {
+          container.innerHTML = list.map(rec => `
+            <div class="border rounded p-2 mb-2">
+              <div><strong>Event:</strong> ${rec.event_name || ('#' + rec.event_id)}</div>
+              <div><strong>Event ID:</strong> ${rec.event_id}</div>
+              <div><strong>Checked at:</strong> ${rec.check_in_time}</div>
+            </div>
+          `).join('');
+        }
+      } catch (e) {
+        showToast('Failed to load my attendance: ' + (e.data?.detail || e.status), 'error');
+      }
+    });
+
+    // ---- Init ----
+    function init() {
+      apiBaseInput.value = getApiBase();
+      setAuthUI();
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
+      showTab('events');
+      loadEvents();
+    }
+
+    init();
+  </script>
+</body>
+</html>
